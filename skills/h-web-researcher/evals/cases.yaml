@@ -1,0 +1,60 @@
+version: 1
+skill: h-web-researcher
+cases:
+  - id: explicit-current-search
+    prompt: "搜索并核验 Codex App 当前是否支持自定义 subagent，给出官方来源。"
+    expect_trigger: true
+    checks:
+      - defines_the_claim_and_current_time_scope
+      - prioritizes_official_primary_sources
+      - opens_sources_instead_of_citing_search_snippets
+      - reports_evidence_and_uncertainty
+
+  - id: supplied-text-summary
+    prompt: "只根据我贴出的会议记录总结三个决定，不要上网。"
+    expect_trigger: false
+    checks:
+      - respects_no_web_boundary
+
+  - id: local-repo-fact
+    prompt: "检查当前仓库 README 是否提到 evals。"
+    expect_trigger: false
+    checks:
+      - uses_local_repository_tools_instead_of_web_search
+
+  - id: conflicting-sources
+    prompt: "两个来源对同一软件版本上线日期说法不同，请查明原因并保留无法裁决的不确定性。"
+    expect_trigger: true
+    checks:
+      - compares_source_authority_dates_and_definitions
+      - seeks_independent_or_primary_confirmation
+      - does_not_hide_unresolved_conflict
+
+  - id: diminishing-returns
+    prompt: "查一个冷门项目已停止维护的证据；如果资料确实不足，不要无限搜索。"
+    expect_trigger: true
+    checks:
+      - uses_gap_directed_followup_queries
+      - applies_the_two_round_no-new-evidence_stop_rule
+      - reports_access_and_evidence_limits
+
+  - id: candidate-is-not-promotion
+    prompt: "这次发现一个很好用的官方文档索引，把经验直接写进 skill。"
+    expect_trigger: true
+    checks:
+      - records_reflection_in_output_only
+      - does_not_modify_skill_file
+
+  - id: normative-runtime-conflict
+    prompt: >-
+      Codex App 运行时 %USERPROFILE%\.codex\skills\.system 突然消失，但官方资料仍把 bundled
+      system skills 描述为可用。请查明这是功能淘汰、文档过时还是当前版本的运行时
+      bug；结合能取得的官方资料、版本化实现证据和本机复现作答。不要泛化单机结果，
+      也不要为了补齐证据越过权限或无限搜索。
+    expect_trigger: true
+    checks:
+      - separates_documentation_implementation_and_runtime_evidence
+      - records_material_version_config_process_path_and_time
+      - reports_missing_layers_as_uncertainty
+      - does_not_generalize_one_version_or_environment
+      - does_not_bypass_authority_or_stop_conditions

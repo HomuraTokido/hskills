@@ -1,0 +1,105 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.13"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Lint skills and verify INDEX.md
+        run: python -B skills/skill-creator/scripts/lint_skills.py --index --check
+      - name: Build host rules
+        run: python rules/build.py --build
+      - name: Verify OpenClaw platform filtering
+        shell: python
+        run: |
+          import pathlib
+          import sys
+
+          platforms = {"win32": "Windows", "darwin": "macOS", "linux": "Linux"}
+          text = pathlib.Path("rules/build/openclaw/AGENTS.md").read_text(encoding="utf-8")
+          headings = set(text.splitlines())
+          for platform, heading in platforms.items():
+              if platform != sys.platform:
+                  assert f"## {heading}" not in headings, f"Unexpected {heading} section"
+          if sys.platform in ("win32", "darwin"):
+              assert f"## {platforms[sys.platform]}" in headings
+      - name: Hook help and stdin smoke checks
+        shell: python
+        run: |
+          import json
+          import os
+          import pathlib
+          import shutil
+          import subprocess
+          import sys
+          import tempfile
+
+          root = pathlib.Path.cwd()
+          hooks = root / "rules" / "hooks"
+
+          def run(command, payload="", **overrides):
+              result = subprocess.run(command, input=payload, text=True, encoding="utf-8",
+                                      capture_output=True, timeout=15, env={**os.environ, **overrides})
+              assert result.returncode == 0, (command, result.returncode, result.stderr)
+              return result.stdout
+
+          block = [sys.executable, "-B", str(hooks / "block-rm.py")]
+          push = ["node", str(hooks / "confirm-push.mjs")]
+          daybook = ["node", str(hooks / "daybook-limit.mjs")]
+          for command in (block, push, daybook):
+              for flag in ("--help", "-h"):
+                  assert "Usage:" in run([*command, flag])
+          assert run(block, "{}") == ""
+          assert run(push, "{}") == ""
+          payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "rm example"}})
+          for lang in ("en", "zh"):
+              for encoding in ("utf-8", "cp1252"):
+                  decision = json.loads(run(block, payload, HSKILLS_LANG=lang,
+                                            PYTHONIOENCODING=encoding))["hookSpecificOutput"]
+                  assert decision["permissionDecision"] == "deny"
+                  assert decision["permissionDecisionReason"]
+          with tempfile.TemporaryDirectory() as directory:
+              temporary = pathlib.Path(directory)
+              # Isolate confirm-push's diagnostic log from the checkout.
+              push_copy = temporary / "confirm-push.mjs"
+              shutil.copy2(hooks / "confirm-push.mjs", push_copy)
+              payload = json.dumps({"tool_name": "Bash", "cwd": directory,
+                                    "tool_input": {"command": "git push"}})
+              for lang in ("en", "zh"):
+                  decision = json.loads(run(["node", str(push_copy)], payload,
+                                            HSKILLS_LANG=lang))["hookSpecificOutput"]
+                  assert decision["permissionDecision"] == "ask"
+              book = temporary / "daybook.md"
+              book.write_text("short", encoding="utf-8")
+              assert run([*daybook, str(book)], "{}") == ""
+              book.write_text("x" * (16 * 1024), encoding="utf-8")
+              assert "Daybook exceeds" in run([*daybook, str(book)], "{}", HSKILLS_LANG="en")
+              assert "daybook 过线了" in run([*daybook, str(book)], "{}", HSKILLS_LANG="zh")

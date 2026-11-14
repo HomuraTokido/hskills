@@ -1,0 +1,6 @@
+interface:
+  display_name: "H Web Researcher"
+  short_description: "Evidence-first web research discipline for the web_researcher role"
+  default_prompt: "Use the h-web-researcher method: source-ranked evidence, opened pages only, cross-validation, explicit stop conditions, and a report with evidence and uncertainty."
+policy:
+  allow_implicit_invocation: true

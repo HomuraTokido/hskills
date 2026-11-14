@@ -1,0 +1,19 @@
+# 依赖与缓存，不进权威源
+node_modules/
+__pycache__/
+*.pyc
+
+# 系统/编辑器噪声
+.DS_Store
+Thumbs.db
+*.log
+
+# 各工具的内部元数据
+.clawhub/
+*.sync
+rules/build/
+
+# 本机专属的 skill 过滤覆盖（平台差异），不跨机同步
+.skillignore.local
+skills/.skillignore.local
+build/
